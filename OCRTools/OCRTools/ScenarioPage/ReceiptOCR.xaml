@@ -1,5 +1,5 @@
 ﻿<Page
-    x:Class="OCRTools.ReceiptScenario"
+    x:Class="OCRTools.ScenarioPage.ReceiptOCR"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -32,6 +32,7 @@
                             <ComboBoxItem>Crop to center of page</ComboBoxItem>
                         </ComboBox>
                         <Button Click="ViewPage" Content="View" Margin="10,0,0,0"/>
+                        <Button Click="CreateDocument" Content="Create Document" Margin="10,0,0,0"/>
                     </StackPanel>
                     <TextBlock x:Name="ImageText" Text="Image Text" Style="{StaticResource SampleHeaderTextStyle}" TextWrapping="Wrap" Margin="0,10,0,0"/>
                     <Image x:Name="Output" AutomationProperties.Name="PDF document content" Stretch="None" Margin="0,10,0,0"/>

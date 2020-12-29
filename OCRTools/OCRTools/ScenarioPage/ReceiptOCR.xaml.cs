@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using Windows.Data.Pdf;
 using Windows.Foundation;
@@ -9,19 +11,21 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
 
-namespace OCRTools
+namespace OCRTools.ScenarioPage
 {
-    public sealed partial class ReceiptScenario : Page
+    public sealed partial class ReceiptOCR : Page
     {
         private MainPage rootPage = MainPage.Current;
         private PdfDocument pdfDocument;
+        private Utils.TesseractTools tesseractTools;
 
         const int WrongPassword = unchecked((int)0x8007052b); // HRESULT_FROM_WIN32(ERROR_WRONG_PASSWORD)
         const int GenericFail = unchecked((int)0x80004005);   // E_FAIL
 
-        public ReceiptScenario()
+        public ReceiptOCR()
         {
             this.InitializeComponent();
+            tesseractTools = new Utils.TesseractTools();
         }
 
         private async void LoadDocument(object sender, RoutedEventArgs args)
@@ -127,12 +131,26 @@ namespace OCRTools
                 }
                 BitmapImage image = new BitmapImage();
                 Output.Source = image;
-                await image.SetSourceAsync(stream);
-
-                byte[] imageBytes = await ImageProcessor.imageStreamToBytes(stream);
-                ImageText.Text=ImageProcessor.ImageToText(imageBytes);
+                await image.SetSourceAsync(stream);         
+                byte[] imageBytes = await Utils.ImageProcessor.imageStreamToBytes(stream);
+                ImageText.Text = tesseractTools.ImageToText(imageBytes);
             }
             ProgressControl.Visibility = Visibility.Collapsed;
+        }
+
+        private async void CreateDocument(object sender, RoutedEventArgs args)
+        {
+            FileSavePicker savePicker = new FileSavePicker();
+            savePicker.SuggestedStartLocation = PickerLocationId.Desktop;
+            savePicker.FileTypeChoices.Add("Excel Workbook", new List<string>() {".xlsx"});
+            savePicker.SuggestedFileName = "Book1";
+            StorageFile file = await savePicker.PickSaveFileAsync();
+
+            ImageText.Text = file.Path;
+            using (Stream stream = await file.OpenStreamForWriteAsync())
+            {
+                Utils.ExcelProcessor.CreateSpreadsheetWorkbook(stream);
+            }                
         }
     }
 }

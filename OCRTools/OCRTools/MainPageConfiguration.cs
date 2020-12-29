@@ -10,7 +10,7 @@ namespace OCRTools
 
         List<Scenario> scenarios = new List<Scenario>
         {
-            new Scenario() { Title="Receipts", ClassType=typeof(ReceiptScenario)},
+            new Scenario() { Title="Receipts", ClassType=typeof(ScenarioPage.ReceiptOCR)},
         };
     }
 
