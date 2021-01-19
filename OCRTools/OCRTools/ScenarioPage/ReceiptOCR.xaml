@@ -7,6 +7,7 @@
     mc:Ignorable="d">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
         <ScrollViewer Margin="12,20,12,12">
             <StackPanel>
                 <TextBlock Text="Description:" Style="{StaticResource SampleHeaderTextStyle}"/>
@@ -17,7 +18,6 @@
                     <Button x:Name="LoadButton" Content="Load document" Click="LoadDocument" Margin="5,0"/>
                     <PasswordBox x:Name="PasswordBox" Width="200" PlaceholderText="Optional password"/>
                 </StackPanel>
-
                 <StackPanel x:Name="RenderingPanel" Visibility="Collapsed">
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <TextBlock Name="ViewPageLabel" VerticalAlignment="center">View page</TextBlock>
@@ -36,6 +36,7 @@
                     </StackPanel>
                     <TextBlock x:Name="ImageText" Text="Image Text" Style="{StaticResource SampleHeaderTextStyle}" TextWrapping="Wrap" Margin="0,10,0,0"/>
                     <Image x:Name="Output" AutomationProperties.Name="PDF document content" Stretch="None" Margin="0,10,0,0"/>
+                    <Image x:Name="testOutput" AutomationProperties.Name="PDF1 document content" Stretch="None" Margin="0,10,0,0"/>
                 </StackPanel>
                 <ProgressRing x:Name="ProgressControl" Height="50" Width="50" IsActive="True" Visibility="Collapsed" Margin="0,10,0,0"/>
             </StackPanel>
