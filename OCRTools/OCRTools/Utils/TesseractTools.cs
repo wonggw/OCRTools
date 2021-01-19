@@ -17,24 +17,26 @@ namespace OCRTools.Utils
         {
             string text = "";
             Pix imagePix = Pix.LoadFromMemory(imageBytes);
-            var page = engine.Process(imagePix);
-            text = page.GetText();       
+            using (var page = engine.Process(imagePix)) 
+            {
+                text = page.GetText();
+            }
             return text;
         }
 
         public List<System.Drawing.Rectangle> GetTextBounds(byte[] imageBytes, string text)
         {
             List<System.Drawing.Rectangle> results = new List<System.Drawing.Rectangle>();
-
             Pix imagePix = Pix.LoadFromMemory(imageBytes);
-            var page = engine.Process(imagePix);
-            using (var iter = page.GetIterator())
+            using (var page = engine.Process(imagePix))
             {
-                results = retrieveResults(page, text);
+                using (var iter = page.GetIterator())
+                {
+                    results = retrieveResults(page, text);
+                }
             }
             return results;
         }
-
 
         private List<System.Drawing.Rectangle> retrieveResults(Page page, string text, float scale = 1.0f)
         {

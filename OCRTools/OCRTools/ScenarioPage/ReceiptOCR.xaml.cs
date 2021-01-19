@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading.Tasks;
 using Windows.Data.Pdf;
 using Windows.Foundation;
+using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
+using Windows.UI;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
@@ -101,7 +102,6 @@ namespace OCRTools.ScenarioPage
 
             // Convert from 1-based page number to 0-based page index.
             uint pageIndex = pageNumber - 1;
-
             using (PdfPage page = pdfDocument.GetPage(pageIndex))
             {
                 var stream = new InMemoryRandomAccessStream();
@@ -129,11 +129,42 @@ namespace OCRTools.ScenarioPage
                         await page.RenderToStreamAsync(stream, options2);
                         break;
                 }
-                BitmapImage image = new BitmapImage();
-                Output.Source = image;
-                await image.SetSourceAsync(stream);         
-                byte[] imageBytes = await Utils.ImageProcessor.imageStreamToBytes(stream);
-                ImageText.Text = tesseractTools.ImageToText(imageBytes);
+
+                //byte[] imageBytes = await Utils.ImageParser.ImageStreamToBytes(stream);
+                SoftwareBitmap bitmap = await Utils.ImageParser.ImageStreamToSoftwareBitmap(stream);
+
+                //SoftwareBitmap output = Utils.ImageProcessor.testing(bitmap);
+                var processImage = new Utils.ImageProcessor(bitmap);
+                processImage.Otsu();
+                //SoftwareBitmapSource src = await Utils.ImageParser.SoftwareBitmapToSoftwareBitmapSource(processImage.GetSoftwareBitmap());
+                byte[] imageByte = await Utils.ImageParser.BitmapToByte(processImage.GetSoftwareBitmap());
+                WriteableBitmap src = Utils.ImageParser.SoftwareBitmapToWriteableBitmap(processImage.GetSoftwareBitmap());
+                List<System.Drawing.Rectangle> boundBoxes = tesseractTools.GetTextBounds(imageByte, "Description");
+                if (boundBoxes.Count != 0)
+                {
+                    foreach (System.Drawing.Rectangle rect in boundBoxes)
+                    {
+                        src.DrawRectangle(rect.X, rect.Y, rect.Right, rect.Bottom, Color.FromArgb(255, 255, 0, 0));
+                    }
+                    Output.Source = src;
+                }
+                else
+                //{
+                //    src = src.Crop(0, 350, src.PixelWidth, 100);
+                //    WriteableBitmap invertedSrc = src.Invert();
+                //    byte[] imageByte = await Utils.ImageProcessor.EncodeJpeg(invertedSrc);
+                //    ImageText.Text = tesseractTools.ImageToText(imageByte);
+                //    List<System.Drawing.Rectangle> boundBox = tesseractTools.GetTextBounds(imageByte, "Description");
+                //    foreach (System.Drawing.Rectangle rect in boundBox)
+                //    {
+                //        invertedSrc.DrawRectangle(rect.X, rect.Y, rect.Right, rect.Bottom, Color.FromArgb(255, 255, 0, 0));
+                //    }
+                //    Output.Source = invertedSrc;
+                //}
+
+                Output.Source = src;
+                //ImageText.Text = tesseractTools.ImageToText(imageByte);
+
             }
             ProgressControl.Visibility = Visibility.Collapsed;
         }
@@ -146,6 +177,7 @@ namespace OCRTools.ScenarioPage
             savePicker.SuggestedFileName = "Book1";
             StorageFile file = await savePicker.PickSaveFileAsync();
 
+            if (file == null) return;
             ImageText.Text = file.Path;
             using (Stream stream = await file.OpenStreamForWriteAsync())
             {
