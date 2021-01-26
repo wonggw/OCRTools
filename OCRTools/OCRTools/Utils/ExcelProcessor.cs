@@ -10,7 +10,7 @@ namespace OCRTools.Utils
 {
     class ExcelProcessor
     {
-        public static void CreateSpreadsheetWorkbook(Stream filepath)
+        public static void CreateSpreadsheetWorkbook(Stream filepath , string text)
         {
 
             // Create a spreadsheet document by supplying the filepath.
@@ -32,18 +32,19 @@ namespace OCRTools.Utils
                 Name = "mySheet"
             };
             sheets.Append(sheet);
-            WriteTextToCells(worksheetPart);
+            WriteTextToCells(worksheetPart, text);
             workbookpart.Workbook.Save();
             spreadsheetDocument.Close();
         }
 
-        public static void WriteTextToCells(WorksheetPart worksheetPart)
+        public static void WriteTextToCells(WorksheetPart worksheetPart, string text)
         {
-            Dictionary<string, List<string>> contentList = new Dictionary<string, List<string>>
+            List<string> textPhase = text.Split("\n").ToList();
+            List<List<string>> textWord = new List<List<string>>();
+            foreach (var phase in textPhase)
             {
-                { "en-US",new List<string> (new string[] { "Dummy text 01","Dummy text 02"}) },
-                { "es-ES",new List<string> (new string[] { "Texto ficticio 01", "Texto ficticio 02"}) }
-            };
+                textWord.Add(phase.Split(" ").ToList());
+            }
 
             // Get the sheetData cell table.
             SheetData sheetData = worksheetPart.Worksheet.GetFirstChild<SheetData>();
@@ -51,9 +52,9 @@ namespace OCRTools.Utils
             char columnNameStart = 'A';
             char columnName = columnNameStart;
             uint rowNumber = 1;
-            foreach (var keys in contentList.Keys)
+            foreach (var phase in textWord)
             {
-                foreach (var value in contentList.Where(v => v.Key == keys).SelectMany(v => v.Value))
+                foreach (var word in phase)
                 {
                     string cellAddress = String.Concat(columnName, rowNumber);
                     // Add a row to the cell table.
@@ -76,7 +77,7 @@ namespace OCRTools.Utils
                     Cell newCell = new Cell() { CellReference = cellAddress };
                     row.InsertBefore(newCell, refCell);
                     // Set the cell value to be a numeric value.
-                    newCell.CellValue = new CellValue(value);
+                    newCell.CellValue = new CellValue(word);
                     newCell.DataType = new EnumValue<CellValues>(CellValues.String);
 
                     int tempColumn = (int)columnName;

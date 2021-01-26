@@ -8,7 +8,6 @@ using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
-using Windows.UI;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
@@ -20,6 +19,7 @@ namespace OCRTools.ScenarioPage
         private MainPage rootPage = MainPage.Current;
         private PdfDocument pdfDocument;
         private Utils.TesseractTools tesseractTools;
+        private string recognizedText;
 
         const int WrongPassword = unchecked((int)0x8007052b); // HRESULT_FROM_WIN32(ERROR_WRONG_PASSWORD)
         const int GenericFail = unchecked((int)0x80004005);   // E_FAIL
@@ -132,30 +132,8 @@ namespace OCRTools.ScenarioPage
                 }
 
                 System.Drawing.Rectangle descriptionBoundingBox = await GetDescriptionBoundingBox(stream);
-
-                SoftwareBitmap inputBitmap = await Utils.ImageParser.ImageStreamToSoftwareBitmap(stream);
-                var processImage = new Utils.ImageProcessor(inputBitmap);
-                int croppedHeight = (inputBitmap.PixelHeight - descriptionBoundingBox.Bottom - 430);
-                if (croppedHeight <= 0) croppedHeight = (int)((inputBitmap.PixelHeight - descriptionBoundingBox.Bottom) * 0.53);
-                const int scale = 4;
-                processImage.Crop(0, descriptionBoundingBox.Bottom, inputBitmap.PixelWidth, croppedHeight);
-                processImage.Sharpen(1);
-                processImage.BilateralFilter(3);
-                processImage.Resize(scale);
-                processImage.BitwiseNot();
-                processImage.RemoveHorizontalLines();
-                processImage.RemoveVerticalLines();
-                processImage.GrayToZero();
-                processImage.MorphologyExOpen(2, 1);
-                processImage.MorphologyExDilate(2, 1);
-                processImage.Resize(0.8);
-                processImage.Invert();
-                processImage.MorphologyExErode(2, 1);
-                byte[] outputByte = await Utils.ImageParser.BitmapToByte(processImage.GetSoftwareBitmap());
-                ImageText.Text = tesseractTools.ImageToText(outputByte);
-                processImage.Resize(0.5);
-                WriteableBitmap src = Utils.ImageParser.SoftwareBitmapToWriteableBitmap(processImage.GetSoftwareBitmap());
-                Output.Source = src;
+                recognizedText = await GetTextfromImage(stream, descriptionBoundingBox);
+                ImageText.Text = recognizedText;
 
             }
             ProgressControl.Visibility = Visibility.Collapsed;
@@ -191,6 +169,32 @@ namespace OCRTools.ScenarioPage
             }
         }
 
+        private async Task<string> GetTextfromImage(IRandomAccessStream streamImage, System.Drawing.Rectangle descriptionBoundingBox)
+        {
+            SoftwareBitmap inputBitmap = await Utils.ImageParser.ImageStreamToSoftwareBitmap(streamImage);
+            var processImage = new Utils.ImageProcessor(inputBitmap);
+            int croppedHeight = (inputBitmap.PixelHeight - descriptionBoundingBox.Bottom - 430);
+            if (croppedHeight <= 0) croppedHeight = (int)((inputBitmap.PixelHeight - descriptionBoundingBox.Bottom) * 0.53);
+            const int scale = 3;
+            processImage.Crop(0, descriptionBoundingBox.Bottom, inputBitmap.PixelWidth, croppedHeight);
+            processImage.Sharpen(1);
+            processImage.BilateralFilter(5);
+            processImage.Resize(scale);
+            processImage.BitwiseNot();
+            processImage.RemoveHorizontalLines();
+            processImage.RemoveVerticalLines();
+            processImage.GrayToZero();
+            processImage.MorphologyExDilate(2, 1);
+            processImage.MorphologyExOpen(2, 1);
+            processImage.Invert();
+            byte[] outputByte = await Utils.ImageParser.BitmapToByte(processImage.GetSoftwareBitmap());
+            string text = tesseractTools.ImageToText(outputByte);
+            processImage.Resize(0.5);
+            WriteableBitmap src = Utils.ImageParser.SoftwareBitmapToWriteableBitmap(processImage.GetSoftwareBitmap());
+            Output.Source = src;
+            return text;
+        }
+
         private async void CreateDocument(object sender, RoutedEventArgs args)
         {
             FileSavePicker savePicker = new FileSavePicker();
@@ -203,7 +207,7 @@ namespace OCRTools.ScenarioPage
             ImageText.Text = file.Path;
             using (Stream stream = await file.OpenStreamForWriteAsync())
             {
-                Utils.ExcelProcessor.CreateSpreadsheetWorkbook(stream);
+                Utils.ExcelProcessor.CreateSpreadsheetWorkbook(stream, recognizedText);
             }                
         }
     }

@@ -69,12 +69,6 @@ namespace OCRTools.Utils
         {
             using (Mat sharpen = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC4))
             {
-                //double[] sharpenArray = { -1, -1 -1,
-                //                          -1, 9, -1,
-                //                          -1, -1,-1 };
-                //double[] sharpenArray = { -0.5, -0.5, -0.5,
-                //                          -0.5, 5, -0.5,
-                //                          -0.5, -0.5,-0.5 };
                 double[] sharpenArray = { 1, 1, 1,
                                           1, 1, 1,
                                           1, 1, 1};
