@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Windows.Data.Pdf;
 using Windows.Foundation;
 using Windows.Graphics.Imaging;
@@ -130,47 +131,64 @@ namespace OCRTools.ScenarioPage
                         break;
                 }
 
-                //byte[] imageBytes = await Utils.ImageParser.ImageStreamToBytes(stream);
-                SoftwareBitmap bitmap = await Utils.ImageParser.ImageStreamToSoftwareBitmap(stream);
+                System.Drawing.Rectangle descriptionBoundingBox = await GetDescriptionBoundingBox(stream);
 
-                //SoftwareBitmap output = Utils.ImageProcessor.testing(bitmap);
-                var processImage = new Utils.ImageProcessor(bitmap);
-                processImage.Denoising();
-                processImage.GaussianBlur(3);
-                processImage.Sharpen();
-                //processImage.Denoising();
-                processImage.Otsu();
-                //SoftwareBitmapSource src = await Utils.ImageParser.SoftwareBitmapToSoftwareBitmapSource(processImage.GetSoftwareBitmap());
-                byte[] imageByte = await Utils.ImageParser.BitmapToByte(processImage.GetSoftwareBitmap());
+                SoftwareBitmap inputBitmap = await Utils.ImageParser.ImageStreamToSoftwareBitmap(stream);
+                var processImage = new Utils.ImageProcessor(inputBitmap);
+                int croppedHeight = (inputBitmap.PixelHeight - descriptionBoundingBox.Bottom - 430);
+                if (croppedHeight <= 0) croppedHeight = (int)((inputBitmap.PixelHeight - descriptionBoundingBox.Bottom) * 0.53);
+                const int scale = 4;
+                processImage.Crop(0, descriptionBoundingBox.Bottom, inputBitmap.PixelWidth, croppedHeight);
+                processImage.Sharpen(1);
+                processImage.BilateralFilter(3);
+                processImage.Resize(scale);
+                processImage.BitwiseNot();
+                processImage.RemoveHorizontalLines();
+                processImage.RemoveVerticalLines();
+                processImage.GrayToZero();
+                processImage.MorphologyExOpen(2, 1);
+                processImage.MorphologyExDilate(2, 1);
+                processImage.Resize(0.8);
+                processImage.Invert();
+                processImage.MorphologyExErode(2, 1);
+                byte[] outputByte = await Utils.ImageParser.BitmapToByte(processImage.GetSoftwareBitmap());
+                ImageText.Text = tesseractTools.ImageToText(outputByte);
+                processImage.Resize(0.5);
                 WriteableBitmap src = Utils.ImageParser.SoftwareBitmapToWriteableBitmap(processImage.GetSoftwareBitmap());
-                List<System.Drawing.Rectangle> boundBoxes = tesseractTools.GetTextBounds(imageByte, "Description");
-                if (boundBoxes.Count != 0)
-                {
-                    foreach (System.Drawing.Rectangle rect in boundBoxes)
-                    {
-                        src.DrawRectangle(rect.X, rect.Y, rect.Right, rect.Bottom, Color.FromArgb(255, 255, 0, 0));
-                    }
-                    Output.Source = src;
-                }
-                else
-                //{
-                //    src = src.Crop(0, 350, src.PixelWidth, 100);
-                //    WriteableBitmap invertedSrc = src.Invert();
-                //    byte[] imageByte = await Utils.ImageProcessor.EncodeJpeg(invertedSrc);
-                //    ImageText.Text = tesseractTools.ImageToText(imageByte);
-                //    List<System.Drawing.Rectangle> boundBox = tesseractTools.GetTextBounds(imageByte, "Description");
-                //    foreach (System.Drawing.Rectangle rect in boundBox)
-                //    {
-                //        invertedSrc.DrawRectangle(rect.X, rect.Y, rect.Right, rect.Bottom, Color.FromArgb(255, 255, 0, 0));
-                //    }
-                //    Output.Source = invertedSrc;
-                //}
-
                 Output.Source = src;
-                //ImageText.Text = tesseractTools.ImageToText(imageByte);
 
             }
             ProgressControl.Visibility = Visibility.Collapsed;
+        }
+
+        private async Task<System.Drawing.Rectangle> GetDescriptionBoundingBox(IRandomAccessStream streamImage)
+        {
+            SoftwareBitmap softwareBitmap = await Utils.ImageParser.ImageStreamToSoftwareBitmap(streamImage);
+
+            const int scale = 2;
+            var processImage = new Utils.ImageProcessor(softwareBitmap);
+            processImage.Sharpen(1);
+            processImage.Denoising();
+            processImage.BilateralFilter(3);
+            processImage.Resize(scale);
+            processImage.Sharpen(3);
+            processImage.MorphologyExErode(3);
+            //WriteableBitmap src = Utils.ImageParser.SoftwareBitmapToWriteableBitmap(processImage.GetSoftwareBitmap());
+            //src = src.Resize(src.PixelWidth / scale, src.PixelHeight / scale, WriteableBitmapExtensions.Interpolation.Bilinear);
+            byte[] outputByte = await Utils.ImageParser.BitmapToByte(processImage.GetSoftwareBitmap());
+            List<System.Drawing.Rectangle> boundBoxes = tesseractTools.GetTextBounds(outputByte, "description");
+            if (boundBoxes.Count != 0)
+            {
+                //src.DrawRectangle(boundBoxes[0].X / scale, boundBoxes[0].Y / scale, boundBoxes[0].Right / scale, boundBoxes[0].Bottom / scale, Color.FromArgb(255, 255, 0, 0));
+                //Output.Source = src;
+                return new System.Drawing.Rectangle(boundBoxes[0].X / scale, boundBoxes[0].Y / scale, boundBoxes[0].Width / scale, boundBoxes[0].Height / scale);
+            }
+               
+            else
+            {
+                //Output.Source = src;
+                return new System.Drawing.Rectangle();
+            }
         }
 
         private async void CreateDocument(object sender, RoutedEventArgs args)

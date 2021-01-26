@@ -41,24 +41,23 @@ namespace OCRTools.Utils
         private List<System.Drawing.Rectangle> retrieveResults(Page page, string text, float scale = 1.0f)
         {
             List<System.Drawing.Rectangle> results = new List<System.Drawing.Rectangle>();
-
-            using (var iter = page.GetIterator())
+            
+            using (var pageIterator = page.GetIterator())
             {
-                iter.Begin();
+                pageIterator.Begin();
 
-                Rect r;
-
-                while (iter.Next(PageIteratorLevel.TextLine))
+                Rect tesseractRect;
+                while (pageIterator.Next(PageIteratorLevel.TextLine))
                 {
-                    if (iter.TryGetBoundingBox(PageIteratorLevel.TextLine, out r))
+                    if (pageIterator.TryGetBoundingBox(PageIteratorLevel.TextLine, out tesseractRect))
                     {
-                        string str = iter.GetText(PageIteratorLevel.TextLine);
-                        if (str.ToUpper().Contains(text.ToUpper()))
+                        string recognizedText = pageIterator.GetText(PageIteratorLevel.TextLine);
+                        if (recognizedText.ToUpper().Contains(text.ToUpper()))
                         {
                             System.Drawing.Rectangle rect =
                                 new System.Drawing.Rectangle(
-                                    new System.Drawing.Point((int)(r.X1 / scale), (int)(r.Y1 / scale)),
-                                    new System.Drawing.Size((int)(r.Width / scale), (int)(r.Height / scale)));
+                                    (int)(tesseractRect.X1 / scale), (int)(tesseractRect.Y1 / scale),
+                                    (int)(tesseractRect.Width / scale), (int)(tesseractRect.Height / scale));
                             results.Add(rect);
                         }
 

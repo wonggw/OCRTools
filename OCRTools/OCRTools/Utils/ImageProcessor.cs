@@ -7,16 +7,12 @@ namespace OCRTools.Utils
 {
     class ImageProcessor
     {
-        private int imageWidth { get; set; }
-        private int imageHeight { get; set; }
+        private Mat matImage { get; set; }
         private BitmapPixelFormat bitmapPixelFormat { get; set; }
         private BitmapAlphaMode bitmapAlphaMode  { get; set; }
-        private Mat matImage { get; set; }
 
         public ImageProcessor(SoftwareBitmap softwareBitmap)
         {
-            imageWidth = softwareBitmap.PixelWidth;
-            imageHeight = softwareBitmap.PixelHeight;
             bitmapPixelFormat = softwareBitmap.BitmapPixelFormat;
             bitmapAlphaMode = softwareBitmap.BitmapAlphaMode;
             matImage = SoftwareBitmapToMat(softwareBitmap);
@@ -24,9 +20,27 @@ namespace OCRTools.Utils
 
         public SoftwareBitmap GetSoftwareBitmap()
         {
-            SoftwareBitmap softwareBitmap = new SoftwareBitmap(bitmapPixelFormat, imageWidth, imageHeight, bitmapAlphaMode);
+            SoftwareBitmap softwareBitmap = new SoftwareBitmap(bitmapPixelFormat, matImage.Width, matImage.Height, bitmapAlphaMode);
             MatToSoftwareBitmap(matImage, softwareBitmap);
             return softwareBitmap;
+        }
+
+        public void Resize(double scale)
+        {
+            if (scale < 1)
+            {
+                Cv2.Resize(matImage, matImage, new Size(matImage.Width * scale, matImage.Height * scale), interpolation: InterpolationFlags.Area);
+            }
+            else
+            {
+                Cv2.Resize(matImage, matImage, new Size(matImage.Width * scale, matImage.Height * scale), interpolation: InterpolationFlags.Linear);
+            }
+        }
+
+        public void Crop(int x, int y, int width, int height)
+        {
+            Rect cropArea = new Rect(x, y, width, height);
+            matImage = new Mat(matImage, cropArea);
         }
 
         public void Denoising()
@@ -39,16 +53,98 @@ namespace OCRTools.Utils
             Cv2.GaussianBlur(matImage, matImage, new Size(kernelSize, kernelSize), sigmaX: 0);
         }
 
-        public void Sharpen()
+        public void BilateralFilter(int kernelSize)
+        {
+            using (Mat gray = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC1))
+            using (Mat bilateralFilter = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC1))
+            {
+                Cv2.CvtColor(matImage, gray, ColorConversionCodes.BGRA2GRAY);
+                Cv2.BilateralFilter(gray, bilateralFilter, kernelSize, 80, 80);
+                bilateralFilter.ConvertTo(matImage, MatType.CV_8UC4);
+                Cv2.CvtColor(matImage, matImage, ColorConversionCodes.GRAY2BGRA);
+            }
+        }
+
+        public void Sharpen(int type=1)
         {
             using (Mat sharpen = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC4))
             {
-                double[] sharpenArray = { -1, -1 -1,
-                                          -1, 9, -1,
-                                          -1, -1,-1 };
+                //double[] sharpenArray = { -1, -1 -1,
+                //                          -1, 9, -1,
+                //                          -1, -1,-1 };
+                //double[] sharpenArray = { -0.5, -0.5, -0.5,
+                //                          -0.5, 5, -0.5,
+                //                          -0.5, -0.5,-0.5 };
+                double[] sharpenArray = { 1, 1, 1,
+                                          1, 1, 1,
+                                          1, 1, 1};
+                if (type == 1)
+                {
+                    sharpenArray = new double[]{ 0, -1, 0,
+                                                -1, 5, -1,
+                                                0, -1,0 };
+                }
+                else if (type == 2)
+                {
+                    sharpenArray = new double[]{ 0, -1.5, 0,
+                                                -1.5, 7, -1.5,
+                                                0, -1.5,0 };
+
+                }
+                else if (type == 3)
+                {
+                    sharpenArray = new double[] { -0.5, -1, -0.5,
+                                                  -1, 7, -1,
+                                                  -0.5, -1,-0.5 };
+
+                }
+
+                else if (type == 4)
+                {
+                    sharpenArray = new double[]{ -0.5, -0.5, -0.5,
+                                                 -0.5, 5, -0.5,
+                                                 -0.5, -0.5,-0.5 };
+                }
+
+                else if (type == 5)
+                {
+                    sharpenArray = new double[]{ -1, -1 -1,
+                                                 -1, 9, -1,
+                                                 -1, -1,-1 };
+                }
+
                 var sharpeKernel = new Mat(rows: 3, cols: 3, type: MatType.CV_64FC1, data: sharpenArray);
                 Cv2.Filter2D(matImage, sharpen, MatType.CV_64FC1, sharpeKernel);
                 sharpen.ConvertTo(matImage, MatType.CV_8UC4);
+            }
+        }
+
+        public void Invert()
+        {
+            using (Mat gray = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC4))
+            using (Mat invert = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC4))
+            {
+                Cv2.CvtColor(matImage, gray, ColorConversionCodes.BGRA2GRAY);
+                Cv2.Threshold(gray, invert, 127, 255, ThresholdTypes.BinaryInv);
+                Cv2.CvtColor(invert, matImage, ColorConversionCodes.GRAY2BGRA);
+            }
+        }
+
+        public void BitwiseNot()
+        {
+            Cv2.BitwiseNot(matImage, matImage);
+        }
+
+        public void AdaptiveThreshold(int blockSize=3)
+        {
+            using (Mat gray = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC1))
+            using (Mat adaptiveThreshold = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC1))
+            {
+                Cv2.CvtColor(matImage, gray, ColorConversionCodes.BGRA2GRAY);
+                gray.ConvertTo(gray, MatType.CV_8UC1);
+                Cv2.AdaptiveThreshold(gray, adaptiveThreshold, 255, AdaptiveThresholdTypes.GaussianC, ThresholdTypes.Binary, blockSize, -2);
+                adaptiveThreshold.ConvertTo(matImage, MatType.CV_8UC4);
+                Cv2.CvtColor(matImage, matImage, ColorConversionCodes.GRAY2BGRA);
             }
         }
 
@@ -61,6 +157,60 @@ namespace OCRTools.Utils
                 Cv2.Threshold(gray, ostu, 127, 255, ThresholdTypes.Otsu);
                 Cv2.CvtColor(ostu, matImage, ColorConversionCodes.GRAY2BGRA);
             }
+        }
+
+        public void GrayToZero()
+        {
+            using (Mat gray = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC4))
+            using (Mat ostu = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC4))
+            {
+                Cv2.CvtColor(matImage, gray, ColorConversionCodes.BGRA2GRAY);
+                Cv2.Threshold(gray, ostu, 127, 255, ThresholdTypes.Tozero);
+                Cv2.CvtColor(ostu, matImage, ColorConversionCodes.GRAY2BGRA);
+            }
+        }
+
+        public void GrayTrunc()
+        {
+            using (Mat gray = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC4))
+            using (Mat ostu = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC4))
+            {
+                Cv2.CvtColor(matImage, gray, ColorConversionCodes.BGRA2GRAY);
+                Cv2.Threshold(gray, ostu, 127, 255, ThresholdTypes.Trunc);
+                Cv2.CvtColor(ostu, matImage, ColorConversionCodes.GRAY2BGRA);
+            }
+
+        }
+        public void MorphologyExOpen(int kernelSize=3, int iterations=1)
+        {
+            var element = Cv2.GetStructuringElement(
+                            MorphShapes.Rect,
+                            new Size(kernelSize, kernelSize));
+            Cv2.MorphologyEx(matImage, matImage, MorphTypes.Open, element,iterations: iterations);
+        }
+
+        public void MorphologyExClose(int kernelSize = 3, int iterations = 1)
+        {
+            var element = Cv2.GetStructuringElement(
+                            MorphShapes.Rect,
+                            new Size(kernelSize, kernelSize));
+            Cv2.MorphologyEx(matImage, matImage, MorphTypes.Close, element, iterations: iterations);
+        }
+
+        public void MorphologyExErode(int kernelSize = 3, int iterations = 1)
+        {
+            var element = Cv2.GetStructuringElement(
+                            MorphShapes.Ellipse,
+                            new Size(kernelSize, kernelSize));
+            Cv2.MorphologyEx(matImage, matImage, MorphTypes.Erode, element, iterations: iterations);
+        }
+
+        public void MorphologyExDilate(int kernelSize = 3, int iterations = 1)
+        {
+            var element = Cv2.GetStructuringElement(
+                            MorphShapes.Ellipse,
+                            new Size(kernelSize, kernelSize));
+            Cv2.MorphologyEx(matImage, matImage, MorphTypes.Dilate, element, iterations: iterations);
         }
 
         public void Canny()
@@ -76,26 +226,72 @@ namespace OCRTools.Utils
                 Cv2.CvtColor(intermediate, matImage, ColorConversionCodes.GRAY2BGRA);
             } 
         }
-        public void testing()
-        {
-            using (Mat test = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC4))
-            using (Mat intermediate = new Mat(matImage.Rows, matImage.Cols, MatType.CV_8UC4))
-            {
-                Cv2.CvtColor(matImage, test, ColorConversionCodes.BGRA2GRAY);
-                Cv2.Threshold(test, intermediate, 127, 255, ThresholdTypes.Otsu);
-                int an = 2;
-                //var element = Cv2.GetStructuringElement(
-                //                MorphShapes.Cross,
-                //                new Size(an * 2 + 1, an * 2 + 1),
-                //                new Point(an, an));
 
-                var element = Mat.Ones(an, an);
-                //Cv2.Threshold(intermediate, test, 70, 255, ThresholdTypes.BinaryInv);
-                //Cv2.MorphologyEx(test, intermediate, MorphTypes.Erode, element);
-                //Cv2.MorphologyEx(test, intermediate, MorphTypes., element);
-                //Cv2.Threshold(test, intermediate, 70, 255, ThresholdTypes.BinaryInv);
-                Cv2.CvtColor(intermediate, matImage, ColorConversionCodes.GRAY2BGRA);
-            }        
+        public void DetectHorizontal()
+        {
+            var element = Cv2.GetStructuringElement(
+                            MorphShapes.Rect,
+                            new Size(matImage.Cols/70, 1));
+            Cv2.Erode(matImage, matImage, element, new Point(-1,-1));
+            Cv2.Dilate(matImage, matImage, element, new Point(-1, -1));        
+        }
+
+        public void DetectVertical()
+        {
+            var element = Cv2.GetStructuringElement(
+                            MorphShapes.Rect,
+                            new Size(1, matImage.Rows / 30));
+            Cv2.Erode(matImage, matImage, element, new Point(-1, -1));
+            Cv2.Dilate(matImage, matImage, element, new Point(-1, -1));  
+        }
+
+        public void RemoveVerticalLines()
+        {
+            using (Mat vertical = matImage.Clone())
+            {
+                var verticalElement = Cv2.GetStructuringElement(
+                                MorphShapes.Rect,
+                                new Size(1, 130));
+                Cv2.Erode(vertical, vertical, verticalElement, new Point(-1, -1));
+                Cv2.Dilate(vertical, vertical, verticalElement, new Point(-1, -1));
+                var element = Cv2.GetStructuringElement(
+                                    MorphShapes.Rect,
+                                    new Size(3, 3));
+                using (Mat gray = new Mat(vertical.Rows, vertical.Cols, MatType.CV_8UC4))
+                using (Mat invert = new Mat(vertical.Rows, vertical.Cols, MatType.CV_8UC4))
+                {
+                    Cv2.CvtColor(vertical, gray, ColorConversionCodes.BGRA2GRAY);
+                    Cv2.Threshold(gray, invert, 40, 255, ThresholdTypes.BinaryInv);
+                    Cv2.CvtColor(invert, vertical, ColorConversionCodes.GRAY2BGRA);
+                }
+                Cv2.MorphologyEx(vertical, vertical, MorphTypes.Erode, element, iterations: 3);
+                Cv2.BitwiseAnd(matImage, vertical, matImage);
+            }
+        }
+
+        public void RemoveHorizontalLines()
+        {
+            using (Mat horizontal = matImage.Clone())
+            {
+                var horizontalElement = Cv2.GetStructuringElement(
+                                MorphShapes.Rect,
+                                new Size(130, 1));
+                Cv2.Erode(horizontal, horizontal, horizontalElement, new Point(-1, -1));
+                Cv2.Dilate(horizontal, horizontal, horizontalElement, new Point(-1, -1));
+                var element = Cv2.GetStructuringElement(
+                                    MorphShapes.Rect,
+                                    new Size(3, 3));
+                using (Mat gray = new Mat(horizontal.Rows, horizontal.Cols, MatType.CV_8UC4))
+                using (Mat invert = new Mat(horizontal.Rows, horizontal.Cols, MatType.CV_8UC4))
+                {
+                    Cv2.CvtColor(horizontal, gray, ColorConversionCodes.BGRA2GRAY);
+                    Cv2.Threshold(gray, invert, 40, 255, ThresholdTypes.BinaryInv);
+                    Cv2.CvtColor(invert, horizontal, ColorConversionCodes.GRAY2BGRA);
+                }
+                Cv2.MorphologyEx(horizontal, horizontal, MorphTypes.Erode, element, iterations: 2);
+                Cv2.BitwiseAnd(matImage, horizontal, matImage);
+            }
+
         }
 
         [ComImport]
